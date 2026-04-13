@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useStore } from "@/lib/useStore";
@@ -9,17 +9,16 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Card from "@/components/ui/Card";
 import toast from "react-hot-toast";
-import dynamic from "next/dynamic";
-import { ScanLine, Search, Plus, Check } from "lucide-react";
-
-const QRScanner = dynamic(() => import("@/components/qr/QRScanner"), { ssr: false });
+import { Search, Plus, Check, Barcode } from "lucide-react";
 
 function RestockContent() {
   const store = useStore();
   const searchParams = useSearchParams();
   const preloadId = searchParams.get("spId");
+  const skuInputRef = useRef<HTMLInputElement>(null);
 
-  const [scanning, setScanning] = useState(false);
+  const [skuText, setSkuText] = useState("");
+  const [scanReady, setScanReady] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [searchResults, setSearchResults] = useState<StoreProduct[]>([]);
   const [selected, setSelected] = useState<StoreProduct | null>(null);
@@ -40,32 +39,70 @@ function RestockContent() {
     else toast.error("Product not found in this store");
   }, [store]);
 
+  const loadBySku = useCallback(async (sku: string) => {
+    if (!store) return;
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("store_products")
+      .select("*, product:products(*, category:categories(*))")
+      .eq("sku", sku.trim().toUpperCase())
+      .eq("store_id", store.id)
+      .single();
+    if (data) setSelected(data);
+    else toast.error("SKU not found in this store");
+  }, [store]);
+
   useEffect(() => {
     if (preloadId) loadById(preloadId);
   }, [preloadId, loadById]);
+
+  function activateScan() {
+    setScanReady(true);
+    setTimeout(() => skuInputRef.current?.focus(), 50);
+  }
+
+  function handleSkuKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter" && skuText.trim()) {
+      loadBySku(skuText);
+      setSkuText("");
+      setScanReady(false);
+    }
+  }
 
   async function handleSearch(value: string) {
     setSearchText(value);
     if (!store || value.length < 2) { setSearchResults([]); return; }
     const supabase = createClient();
-    const { data } = await supabase
-      .from("store_products")
-      .select("*, product:products(*, category:categories(*))")
-      .eq("store_id", store.id)
-      .or(`product.name.ilike.%${value}%,sku.ilike.%${value}%`)
-      .limit(8);
-    setSearchResults(data || []);
-  }
 
-  function handleQRScan(raw: string) {
-    setScanning(false);
-    try {
-      const parsed = JSON.parse(raw);
-      if (parsed.spId) loadById(parsed.spId);
-      else toast.error("Invalid QR code");
-    } catch {
-      toast.error("Could not read QR code");
-    }
+    // Search products by name to get their IDs
+    const { data: matchingProducts } = await supabase
+      .from("products")
+      .select("id")
+      .ilike("name", `%${value}%`)
+      .limit(20);
+
+    const productIds = (matchingProducts || []).map(p => p.id);
+
+    const [byName, bySku] = await Promise.all([
+      productIds.length > 0
+        ? supabase
+            .from("store_products")
+            .select("*, product:products(*, category:categories(*))")
+            .eq("store_id", store.id)
+            .in("product_id", productIds)
+            .limit(8)
+        : Promise.resolve({ data: [] }),
+      supabase
+        .from("store_products")
+        .select("*, product:products(*, category:categories(*))")
+        .eq("store_id", store.id)
+        .ilike("sku", `%${value}%`)
+        .limit(8),
+    ]);
+
+    const combined = [...(byName.data || []), ...(bySku.data || [])];
+    const unique = combined.filter((item, i, arr) => arr.findIndex(x => x.id === item.id) === i);
+    setSearchResults(unique.slice(0, 8));
   }
 
   async function handleRestock() {
@@ -110,13 +147,29 @@ function RestockContent() {
 
       {!selected ? (
         <>
-          <button
-            onClick={() => setScanning(true)}
-            className="w-full flex items-center justify-center gap-3 bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-4 rounded-2xl shadow-sm"
-          >
-            <ScanLine size={22} />
-            <span>Scan QR Code</span>
-          </button>
+          {!scanReady ? (
+            <button
+              onClick={activateScan}
+              className="w-full flex items-center justify-center gap-3 bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-4 rounded-2xl shadow-sm"
+            >
+              <Barcode size={22} />
+              <span>Scan SKU Barcode</span>
+            </button>
+          ) : (
+            <div className="bg-white rounded-2xl border-2 border-emerald-500 shadow-sm p-4 space-y-2">
+              <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Ready — scan now</p>
+              <input
+                ref={skuInputRef}
+                value={skuText}
+                onChange={(e) => setSkuText(e.target.value)}
+                onKeyDown={handleSkuKeyDown}
+                onBlur={() => { if (!skuText) setScanReady(false); }}
+                placeholder="Scanning..."
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                autoFocus
+              />
+            </div>
+          )}
 
           <div className="flex items-center gap-3">
             <div className="flex-1 h-px bg-slate-200" />
@@ -208,9 +261,6 @@ function RestockContent() {
         </>
       )}
 
-      {scanning && (
-        <QRScanner onScan={handleQRScan} onClose={() => setScanning(false)} />
-      )}
     </div>
   );
 }

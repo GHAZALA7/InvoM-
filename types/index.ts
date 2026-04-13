@@ -46,6 +46,7 @@ export interface StoreProduct {
   qr_code: string
   sku: string
   low_stock_threshold: number
+  cost_price: number | null
   created_at: string
   product?: Product
   store?: Store

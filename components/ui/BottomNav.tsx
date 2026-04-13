@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, PackagePlus, ScanLine, History, RotateCcw } from "lucide-react";
+import { LayoutDashboard, PackagePlus, Barcode, History } from "lucide-react";
 
 const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Home" },
-  { href: "/sell", icon: ScanLine, label: "Sell" },
+  { href: "/sell", icon: Barcode, label: "Sell" },
   { href: "/restock", icon: PackagePlus, label: "Restock" },
   { href: "/history", icon: History, label: "History" },
 ];

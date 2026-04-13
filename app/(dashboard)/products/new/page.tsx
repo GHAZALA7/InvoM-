@@ -8,7 +8,6 @@ import { generateSKU } from "@/lib/generateSKU";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import toast from "react-hot-toast";
-import QRCode from "qrcode";
 import { ArrowLeft, Tag } from "lucide-react";
 
 interface CategorySuggestion { id: string; name: string }
@@ -25,6 +24,7 @@ export default function NewProductPage() {
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [ownershipTypeId, setOwnershipTypeId] = useState("");
   const [quantity, setQuantity] = useState("0");
+  const [costPrice, setCostPrice] = useState("");
   const [notes, setNotes] = useState("");
   const [lowStockThreshold, setLowStockThreshold] = useState("5");
 
@@ -76,6 +76,14 @@ export default function NewProductPage() {
     if (!store) return;
     if (!categoryInput.trim()) {
       toast.error("Please enter a category");
+      return;
+    }
+    if (!quantity || parseInt(quantity) < 0) {
+      toast.error("Please enter a valid quantity");
+      return;
+    }
+    if (!costPrice || parseFloat(costPrice) <= 0) {
+      toast.error("Please enter a cost price");
       return;
     }
 
@@ -145,11 +153,9 @@ export default function NewProductPage() {
         return;
       }
 
-      // 4. Generate unique SKU + QR code
+      // 4. Generate unique SKU
       const sku = generateSKU(store.name, categoryInput);
       const storeProductId = crypto.randomUUID();
-      const qrPayload = JSON.stringify({ spId: storeProductId, sku, store: store.name });
-      const qrCode = await QRCode.toDataURL(qrPayload, { width: 300, margin: 2 });
 
       // 5. Insert store_product
       const { error: spError } = await supabase.from("store_products").insert({
@@ -157,9 +163,9 @@ export default function NewProductPage() {
         store_id: store.id,
         product_id: productId,
         quantity: parseInt(quantity) || 0,
-        qr_code: qrCode,
         sku,
         low_stock_threshold: parseInt(lowStockThreshold) || 5,
+        cost_price: costPrice ? parseFloat(costPrice) : null,
       });
       if (spError) throw spError;
 
@@ -277,6 +283,17 @@ export default function NewProductPage() {
             placeholder="0"
             value={quantity}
             onChange={(e) => setQuantity(e.target.value)}
+            required
+          />
+          <Input
+            label="Cost price per unit"
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="0.00"
+            value={costPrice}
+            onChange={(e) => setCostPrice(e.target.value)}
+            required
           />
           <Input
             label="Low stock alert threshold"
@@ -289,7 +306,7 @@ export default function NewProductPage() {
         </div>
 
         <Button type="submit" loading={loading} fullWidth size="lg">
-          Add product & generate QR
+          Add product
         </Button>
       </form>
     </div>
