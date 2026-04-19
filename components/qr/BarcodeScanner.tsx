@@ -26,11 +26,15 @@ export default function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps)
         await scanner.start(
           { facingMode: "environment" },
           { fps: 10, qrbox: { width: 280, height: 120 } },
-          (decodedText) => {
-            if (mountedRef.current) {
-              onScan(decodedText);
-              scanner.stop().catch(() => {});
+          async (decodedText) => {
+            if (!mountedRef.current) return;
+            mountedRef.current = false;
+            try {
+              await scanner.stop();
+            } catch {
+              // ignore stop errors
             }
+            onScan(decodedText);
           },
           () => {}
         );
@@ -44,8 +48,10 @@ export default function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps)
     startScanner();
 
     return () => {
-      mountedRef.current = false;
-      scannerRef.current?.stop().catch(() => {});
+      if (mountedRef.current) {
+        mountedRef.current = false;
+        scannerRef.current?.stop().catch(() => {});
+      }
     };
   }, [onScan]);
 
