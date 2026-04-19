@@ -8,7 +8,10 @@ import { generateSKU } from "@/lib/generateSKU";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import toast from "react-hot-toast";
-import { ArrowLeft, Tag } from "lucide-react";
+import dynamic from "next/dynamic";
+import { ArrowLeft, Tag, Camera, RefreshCw } from "lucide-react";
+
+const BarcodeScanner = dynamic(() => import("@/components/qr/BarcodeScanner"), { ssr: false });
 
 interface CategorySuggestion { id: string; name: string }
 interface OwnershipType { id: string; name: string }
@@ -27,6 +30,8 @@ export default function NewProductPage() {
   const [costPrice, setCostPrice] = useState("");
   const [notes, setNotes] = useState("");
   const [lowStockThreshold, setLowStockThreshold] = useState("5");
+  const [manualSku, setManualSku] = useState("");
+  const [scanning, setScanning] = useState(false);
 
   // Autocomplete
   const [suggestions, setSuggestions] = useState<CategorySuggestion[]>([]);
@@ -153,8 +158,8 @@ export default function NewProductPage() {
         return;
       }
 
-      // 4. Generate unique SKU
-      const sku = generateSKU(store.name, categoryInput);
+      // 4. Use scanned/manual SKU or auto-generate
+      const sku = manualSku.trim() || generateSKU(store.name, categoryInput);
       const storeProductId = crypto.randomUUID();
 
       // 5. Insert store_product
@@ -272,6 +277,39 @@ export default function NewProductPage() {
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
           />
+
+          {/* SKU */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">SKU / Barcode</label>
+            <div className="flex gap-2">
+              <input
+                value={manualSku}
+                onChange={(e) => setManualSku(e.target.value)}
+                placeholder="Scan or leave blank to auto-generate"
+                className="flex-1 px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <button
+                type="button"
+                onClick={() => setScanning(true)}
+                className="flex items-center gap-1.5 px-3 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl min-h-0"
+              >
+                <Camera size={16} />
+                Scan
+              </button>
+              {manualSku && (
+                <button
+                  type="button"
+                  onClick={() => setManualSku("")}
+                  className="flex items-center gap-1.5 px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-medium rounded-xl min-h-0"
+                >
+                  <RefreshCw size={16} />
+                </button>
+              )}
+            </div>
+            <p className="text-xs text-slate-400 mt-1">
+              {manualSku ? `Using scanned barcode: ${manualSku}` : "Will auto-generate if left blank"}
+            </p>
+          </div>
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-4">
@@ -309,6 +347,13 @@ export default function NewProductPage() {
           Add product
         </Button>
       </form>
+
+      {scanning && (
+        <BarcodeScanner
+          onScan={(value) => { setManualSku(value); setScanning(false); toast.success(`Barcode scanned: ${value}`); }}
+          onClose={() => setScanning(false)}
+        />
+      )}
     </div>
   );
 }
