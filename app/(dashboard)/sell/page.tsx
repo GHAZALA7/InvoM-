@@ -10,7 +10,10 @@ import Input from "@/components/ui/Input";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import toast from "react-hot-toast";
-import { Search, Minus, Check } from "lucide-react";
+import { Search, Minus, Check, Camera } from "lucide-react";
+import dynamic from "next/dynamic";
+
+const BarcodeScanner = dynamic(() => import("@/components/qr/BarcodeScanner"), { ssr: false });
 
 function SellContent() {
   const store = useStore();
@@ -19,6 +22,7 @@ function SellContent() {
   const skuInputRef = useRef<HTMLInputElement>(null);
 
   const [skuText, setSkuText] = useState("");
+  const [scanning, setScanning] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [searchResults, setSearchResults] = useState<StoreProduct[]>([]);
   const [selected, setSelected] = useState<StoreProduct | null>(null);
@@ -150,14 +154,23 @@ function SellContent() {
         <>
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-2">
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Scan SKU barcode</p>
-            <input
-              ref={skuInputRef}
-              value={skuText}
-              onChange={(e) => setSkuText(e.target.value)}
-              onKeyDown={handleSkuKeyDown}
-              placeholder="Scan or type SKU and press Enter..."
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
+            <div className="flex gap-2">
+              <input
+                ref={skuInputRef}
+                value={skuText}
+                onChange={(e) => setSkuText(e.target.value)}
+                onKeyDown={handleSkuKeyDown}
+                placeholder="Scan or type SKU and press Enter..."
+                className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <button
+                type="button"
+                onClick={() => setScanning(true)}
+                className="flex items-center gap-1.5 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl min-h-0"
+              >
+                <Camera size={18} />
+              </button>
+            </div>
           </div>
 
           <div className="flex items-center gap-3">
@@ -249,6 +262,15 @@ function SellContent() {
         </>
       )}
 
+      {scanning && (
+        <BarcodeScanner
+          onScan={(value) => {
+            setScanning(false);
+            loadBySku(value);
+          }}
+          onClose={() => setScanning(false)}
+        />
+      )}
     </div>
   );
 }
