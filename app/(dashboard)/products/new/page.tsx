@@ -350,7 +350,11 @@ export default function NewProductPage() {
 
       {scanning && (
         <BarcodeScanner
-          onScan={(value) => { setManualSku(value); setScanning(false); toast.success(`Barcode scanned: ${value}`); }}
+          onScan={(value) => {
+            setManualSku(value);
+            setScanning(false);
+            toast.success("Barcode scanned!");
+          }}
           onClose={() => setScanning(false)}
         />
       )}

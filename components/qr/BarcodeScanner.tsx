@@ -12,45 +12,42 @@ interface BarcodeScannerProps {
 export default function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
   const [error, setError] = useState<string | null>(null);
   const scannerRef = useRef<Html5Qrcode | null>(null);
-  const mountedRef = useRef(true);
+  const doneRef = useRef(false);
 
   useEffect(() => {
-    mountedRef.current = true;
     const scannerId = "barcode-reader";
+    let scanner: Html5Qrcode | null = null;
 
     async function startScanner() {
       try {
-        const scanner = new Html5Qrcode(scannerId);
+        scanner = new Html5Qrcode(scannerId);
         scannerRef.current = scanner;
 
         await scanner.start(
           { facingMode: "environment" },
-          { fps: 10, qrbox: { width: 280, height: 120 } },
-          async (decodedText) => {
-            if (!mountedRef.current) return;
-            mountedRef.current = false;
-            try {
-              await scanner.stop();
-            } catch {
-              // ignore stop errors
-            }
-            onScan(decodedText);
+          { fps: 10, qrbox: { width: 250, height: 100 } },
+          (decodedText) => {
+            if (doneRef.current) return;
+            doneRef.current = true;
+            // Stop first, then notify parent
+            scanner?.stop()
+              .catch(() => {})
+              .finally(() => {
+                onScan(decodedText);
+              });
           },
           () => {}
         );
       } catch {
-        if (mountedRef.current) {
-          setError("Camera access denied. Please allow camera permissions and try again.");
-        }
+        setError("Camera access denied. Please allow camera permissions and try again.");
       }
     }
 
     startScanner();
 
     return () => {
-      if (mountedRef.current) {
-        mountedRef.current = false;
-        scannerRef.current?.stop().catch(() => {});
+      if (!doneRef.current) {
+        scanner?.stop().catch(() => {});
       }
     };
   }, [onScan]);
@@ -76,7 +73,7 @@ export default function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps)
           <div className="relative">
             <div id="barcode-reader" className="rounded-2xl overflow-hidden" />
             <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-              <div className="w-64 h-24 border-2 border-white/60 rounded-xl">
+              <div className="w-64 h-24 border-2 border-white/60 rounded-xl relative">
                 <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-white rounded-tl-xl" />
                 <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-white rounded-tr-xl" />
                 <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-white rounded-bl-xl" />
